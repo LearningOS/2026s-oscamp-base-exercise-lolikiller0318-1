@@ -55,7 +55,7 @@
 //! Run `cargo test` to check your implementations.
 //! 运行 `cargo test` 检查你的实现。
 
-use std::io::{self, Read, Write};
+use std::io::{self, BufReader, Read, Write};
 use std::process::{Command, Stdio};
 
 /// Execute the given shell command and return its stdout output.
@@ -163,7 +163,17 @@ pub fn pipe_through_cat(input: &str) -> String {
     // TODO: 丢弃 stdin 以关闭管道（否则 cat 不会退出）
     // TODO: Read output from child process stdout
     // TODO: 从子进程的 stdout 读取输出
-    todo!()
+    //todo!()
+    let mut command_cat = Command::new("cat")
+        .stdin(Stdio::piped())
+        .stdout(Stdio::piped())
+        .spawn()
+        .unwrap();
+    command_cat.stdin.take().unwrap().write_all(input.as_bytes());
+    drop(command_cat.stdin);
+    let mut output = String::new();
+    command_cat.stdout.take().unwrap().read_to_string(&mut output);
+    output
 }
 
 /// Get child process exit code.
@@ -199,7 +209,13 @@ pub fn get_exit_code(command: &str) -> i32 {
     // TODO: 执行并获取状态
     // TODO: Return exit code
     // TODO: 返回退出代码
-    todo!()
+    //todo!()
+    let command_sh = Command::new("sh")
+        .args(["-c", command])
+        .status()
+        .unwrap();
+    let exit_code = command_sh.code().unwrap_or(-1);
+    exit_code
 }
 
 /// Execute the given shell command and return its stdout output as a `Result`.
@@ -236,19 +252,21 @@ pub fn get_exit_code(command: &str) -> i32 {
 /// 4. Convert `stdout` to `String` with `String::from_utf8`; if that fails, map to an `io::Error`.
 /// 4. 使用 `String::from_utf8` 将 `stdout` 转换为 `String`；如果失败，映射为 `io::Error`。
 pub fn run_command_with_result(program: &str, args: &[&str]) -> io::Result<String> {
-    // TODO: Create "grep" command with pattern, set stdin and stdout to piped
-    // TODO: 创建 "grep" 命令并指定 pattern，设置 stdin 和 stdout 为管道
-    // TODO: Spawn process
-    // TODO: 启动进程
-    // TODO: Write input lines to child stdin
-    // TODO: 向子进程的 stdin 写入输入行
-    // TODO: Drop stdin to close pipe
-    // TODO: 丢弃 stdin 以关闭管道
-    // TODO: Read output from child stdout line by line
-    // TODO: 逐行从子进程的 stdout 读取输出
-    // TODO: Collect and return matching lines
-    // TODO: 收集并返回匹配的行
-    todo!()
+    // TODO: Use Command::new to create process
+    // TODO: 使用 Command::new 创建进程
+    // TODO: Set stdout to Stdio::piped()
+    // TODO: 设置 stdout 为 Stdio::piped()
+    // TODO: Execute with .output() and handle Result
+    // TODO: 使用 .output() 执行并处理 Result
+    // TODO: Convert stdout to String with from_utf8, mapping errors to io::Error
+    // TODO: 使用 from_utf8 将 stdout 转换为 String，将错误映射为 io::Error
+    //todo!()
+    let command = Command::new(program)
+        .args(args)
+        .stdout(Stdio::piped())
+        .output()?;
+    String::from_utf8(command.stdout).map_err(|e| io::Error::new(io::ErrorKind::InvalidData, e))
+        
 }
 
 /// Interact with `grep` via bidirectional pipes, filtering lines that contain a pattern.
@@ -288,12 +306,32 @@ pub fn run_command_with_result(program: &str, args: &[&str]) -> io::Result<Strin
 ///
 pub fn pipe_through_grep(pattern: &str, input: &str) -> String {
     // TODO: Create "grep" command with pattern, set stdin and stdout to piped
+    // TODO: 创建 "grep" 命令并指定 pattern，设置 stdin 和 stdout 为管道
     // TODO: Spawn process
+    // TODO: 启动进程
     // TODO: Write input lines to child stdin
+    // TODO: 向子进程的 stdin 写入输入行
     // TODO: Drop stdin to close pipe
+    // TODO: 丢弃 stdin 以关闭管道
     // TODO: Read output from child stdout line by line
+    // TODO: 逐行从子进程的 stdout 读取输出
     // TODO: Collect and return matching lines
-    todo!()
+    // TODO: 收集并返回匹配的行
+    //todo!()
+    let mut command_grep = Command::new("grep")
+        .args(&[pattern])
+        .stdin(Stdio::piped())
+        .stdout(Stdio::piped())
+        .spawn()
+        .unwrap();
+    let mut command_grep_stdin = command_grep.stdin.take().unwrap();
+    command_grep_stdin.write_all(input.as_bytes()).unwrap();
+    drop(command_grep_stdin);
+    let stdout = command_grep.stdout.take().unwrap();
+    let mut ouput = String::new();
+    BufReader::new(stdout).read_to_string(&mut ouput).unwrap();
+    command_grep.wait().unwrap();
+    ouput
 }
 
 #[cfg(test)]
