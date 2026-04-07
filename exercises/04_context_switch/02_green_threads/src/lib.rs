@@ -165,6 +165,17 @@ impl Scheduler {
         //TODO
         //todo!("alloc stack, init ctx with ra=thread_wrapper and aligned sp, push GreenThread(Ready, entry)")
         let buffer = vec![0u8; STACK_SIZE];
+        let stack_top = buffer.as_ptr() as usize + STACK_SIZE;
+        let mut ctx = TaskContext::default();
+        ctx.sp = (stack_top-16) as u64;
+        ctx.ra = thread_wrapper as u64;
+        let thread = GreenThread {
+            ctx,
+            state: ThreadState::Ready,
+            _stack: Some(buffer),
+            entry: Some(entry),
+        };
+        self.threads.push(thread);
 
     }
 
@@ -179,13 +190,44 @@ impl Scheduler {
     ///3. 完成后清除 `SCHEDULER`。
     pub fn run(&mut self) {
         //TODO
-        todo!("set SCHEDULER to self, loop until threads[1..] all Finished, call schedule_next, then clear SCHEDULER")
+        //todo!("set SCHEDULER to self, loop until threads[1..] all Finished, call schedule_next, then clear SCHEDULER")
+        unsafe {
+            SCHEDULER = self;
+            loop{
+                if self.threads[1..].iter().all(|t| t.state == ThreadState::Finished) {
+                    break;
+                }
+                self.schedule_next();
+            }
+        }
     }
 
     /// Find the next ready thread (starting from `current + 1` round-robin), mark current as `Ready` (if not `Finished`), mark next as `Running`, set `CURRENT_THREAD_ENTRY` if the next thread has an entry, then switch to it.
     ///找到下一个就绪线程（从 `current + 1` 开始轮询），将当前线程标记为 `Ready`（如果尚未 `Finished`），将下一个线程标记为 `Running`，如果下一个线程有入口则设置 `CURRENT_THREAD_ENTRY`，然后切换到它。
     fn schedule_next(&mut self) {
-        todo!("round-robin find next Ready, set current Ready (if not Finished), next Running, CURRENT_THREAD_ENTRY, then switch_context")
+        let mut next = (self.current + 1) % self.threads.len();
+
+        while self.threads[next].state != ThreadState::Ready {
+            next = (next + 1) % self.threads.len();
+        }
+        if self.threads[self.current].state != ThreadState::Finished {
+            self.threads[self.current].state = ThreadState::Ready;
+        }
+
+        let old = self.current;
+        self.current = next;
+        self.threads[next].state = ThreadState::Running;
+
+        if let Some(entry) = self.threads[next].entry {
+            unsafe { CURRENT_THREAD_ENTRY = Some(entry) };
+        }
+
+        let old_ctx_ptr = self.threads[old].ctx.as_mut_ptr();
+        let new_ctx_ptr = self.threads[next].ctx.as_ptr();
+
+        unsafe {
+            switch_context(&mut *old_ctx_ptr, &*new_ctx_ptr);
+        }
     }
 }
 
